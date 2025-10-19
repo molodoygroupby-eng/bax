@@ -1,0 +1,202 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum MessageRole {
+  system
+  user
+  assistant
+}
+
+enum SubscriptionStatus {
+  INACTIVE
+  ACTIVE
+  CANCELED
+  EXPIRED
+}
+
+enum BillingProvider {
+  STRIPE
+  YOOKASSA
+}
+
+// NextAuth core models
+model User {
+  id             String    @id @default(cuid())
+  name           String?
+  email          String?   @unique
+  emailVerified  DateTime?
+  image          String?
+  role           UserRole  @default(USER)
+  hashedPassword String?
+
+  accounts       Account[]
+  sessions       Session[]
+
+  // Ownership
+  companies      Company[]
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?  @map("refresh_token")
+  access_token      String?  @map("access_token")
+  expires_at        Int?     @map("expires_at")
+  token_type        String?  @map("token_type")
+  scope             String?
+  id_token          String?  @map("id_token")
+  session_state     String?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Domain models
+model Company {
+  id             String      @id @default(cuid())
+  ownerId        String
+  name           String
+  description    String?
+  industry       String?
+  logoUrl        String?
+  widgetName     String      @default("AI Assistant")
+  systemPrompt   String      @default("")
+  primaryColor   String      @default("#111827") // gray-900
+  bubbleStyle    String      @default("round")
+
+  owner          User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  widget         Widget?
+  subscriptions  Subscription[]
+  chatSessions   ChatSession[]
+
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+}
+
+model Widget {
+  id          String   @id @default(cuid())
+  // Public identifier exposed in the script tag query param
+  publicId    String   @unique @default(cuid())
+  companyId   String   @unique
+
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  chatSessions ChatSession[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ChatSession {
+  id          String       @id @default(cuid())
+  widgetId    String
+  companyId   String
+  visitorId   String?
+  ip          String?
+  userAgent   String?
+  referer     String?
+  startedAt   DateTime     @default(now())
+  endedAt     DateTime?
+
+  widget      Widget       @relation(fields: [widgetId], references: [id], onDelete: Cascade)
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  messages    ChatMessage[]
+}
+
+model ChatMessage {
+  id          String      @id @default(cuid())
+  sessionId   String
+  role        MessageRole
+  content     String
+  tokensUsed  Int?
+  createdAt   DateTime    @default(now())
+
+  session     ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model Plan {
+  id           String   @id @default(cuid())
+  name         String
+  durationDays Int
+  priceUsd     Int      // in cents
+  priceRub     Int      // in kopeks
+  active       Boolean  @default(true)
+  stripePriceId  String?
+
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id            String              @id @default(cuid())
+  companyId     String
+  planId        String?
+  status        SubscriptionStatus  @default(INACTIVE)
+  provider      BillingProvider?
+  currentPeriodEnd DateTime?
+
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  yookassaPaymentId    String?
+
+  company       Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plan          Plan?   @relation(fields: [planId], references: [id])
+  payments      Payment[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Payment {
+  id              String             @id @default(cuid())
+  subscriptionId  String
+  provider        BillingProvider
+  amountCents     Int
+  currency        String
+  status          String
+  externalId      String?
+  createdAt       DateTime @default(now())
+
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+}
