@@ -2,6 +2,8 @@ import { PrismaAdapter } from '@auth/prisma-adapter';
 import type { NextAuthConfig } from 'next-auth';
 import Google from 'next-auth/providers/google';
 import GitHub from 'next-auth/providers/github';
+import Email from 'next-auth/providers/email';
+import Auth0 from 'next-auth/providers/auth0';
 import Credentials from 'next-auth/providers/credentials';
 import { prisma } from './prisma';
 import bcrypt from 'bcrypt';
@@ -12,6 +14,11 @@ export const authConfig: NextAuthConfig = {
   providers: [
     Google,
     GitHub,
+    Auth0,
+    Email({
+      server: process.env.EMAIL_SERVER,
+      from: process.env.EMAIL_FROM,
+    }),
     Credentials({
       name: 'Credentials',
       credentials: {
