@@ -6,8 +6,8 @@ import { authConfig } from '@/lib/auth';
 
 export async function POST(req: Request) {
   const session = await getServerSession(authConfig);
-  if (!session?.user) return new NextResponse('Unauthorized', { status: 401 });
-  const userId = (session.user as any).id as string;
+  const userId = (session as any)?.user?.id as string | undefined;
+  if (!userId) return new NextResponse('Unauthorized', { status: 401 });
   let planId: string | undefined;
   const contentType = req.headers.get('content-type') || '';
   if (contentType.includes('application/json')) {

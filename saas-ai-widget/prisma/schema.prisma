@@ -33,6 +33,11 @@ enum SubscriptionStatus {
   EXPIRED
 }
 
+enum ChatStatus {
+  OPEN
+  CLOSED
+}
+
 enum BillingProvider {
   STRIPE
   YOOKASSA
@@ -48,11 +53,23 @@ model User {
   role           UserRole  @default(USER)
   hashedPassword String?
 
+  // Optional per-user OpenAI key and usage limits
+  openaiKeyEncrypted   String?
+  tokenLimitMonthly    Int       @default(100000)
+  tokensUsedThisMonth  Int       @default(0)
+
+  // Referral tracking
+  referralCode         String?   @unique
+  bonusBalanceCents    Int       @default(0)
+
   accounts       Account[]
   sessions       Session[]
 
   // Ownership
   companies      Company[]
+  referralsMade  Referral[]      @relation("referrals_made")
+  referralsGot   Referral[]      @relation("referrals_got")
+  telegramBots   TelegramBot[]
 
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -111,6 +128,8 @@ model Company {
   widget         Widget?
   subscriptions  Subscription[]
   chatSessions   ChatSession[]
+  leads          Lead[]
+  logs           AppLog[]
 
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
@@ -124,6 +143,7 @@ model Widget {
 
   company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   chatSessions ChatSession[]
+  leads        Lead[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -139,6 +159,7 @@ model ChatSession {
   referer     String?
   startedAt   DateTime     @default(now())
   endedAt     DateTime?
+  status      ChatStatus   @default(OPEN)
 
   widget      Widget       @relation(fields: [widgetId], references: [id], onDelete: Cascade)
   company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -156,9 +177,23 @@ model ChatMessage {
   session     ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 }
 
+model Lead {
+  id          String   @id @default(cuid())
+  widgetId    String
+  companyId   String
+  name        String?
+  email       String?
+  phone       String?
+  message     String?
+  createdAt   DateTime @default(now())
+
+  widget      Widget   @relation(fields: [widgetId], references: [id], onDelete: Cascade)
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
 model Plan {
   id           String   @id @default(cuid())
-  name         String
+  name         String   @unique
   durationDays Int
   priceUsd     Int      // in cents
   priceRub     Int      // in kopeks
@@ -199,4 +234,42 @@ model Payment {
   createdAt       DateTime @default(now())
 
   subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+}
+
+model Referral {
+  id           String  @id @default(cuid())
+  referrerId   String
+  invitedId    String
+  bonusCents   Int     @default(0)
+  createdAt    DateTime @default(now())
+
+  referrer     User    @relation("referrals_made", fields: [referrerId], references: [id], onDelete: Cascade)
+  invited      User    @relation("referrals_got", fields: [invitedId], references: [id], onDelete: Cascade)
+
+  @@unique([referrerId, invitedId])
+}
+
+model TelegramBot {
+  id           String  @id @default(cuid())
+  userId       String
+  tokenEncrypted String
+  secretToken  String  @unique
+  chatId       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId])
+}
+
+model AppLog {
+  id         String   @id @default(cuid())
+  companyId  String?
+  level      String
+  message    String
+  data       String?
+  createdAt  DateTime @default(now())
+
+  company    Company? @relation(fields: [companyId], references: [id])
 }
