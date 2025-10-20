@@ -12,6 +12,9 @@ const script = (publicId: string, primaryColor: string) => `(()=>{
   .aiw-input{display:flex;border-top:1px solid #e5e7eb}
   .aiw-input input{flex:1;padding:10px;border:0;outline:none}
   .aiw-input button{padding:0 12px;border:0;background:${primaryColor};color:white}
+  .aiw-lead{border-top:1px solid #e5e7eb;padding:8px;display:flex;gap:6px}
+  .aiw-lead input{flex:1;padding:8px;border:1px solid #e5e7eb;border-radius:6px}
+  .aiw-lead button{padding:0 10px;border:0;background:${primaryColor};color:white;border-radius:6px}
   ` + "`" + `;document.head.appendChild(style);
   const bubble=document.createElement('div');bubble.className='aiw-bubble';bubble.innerHTML='💬';document.body.appendChild(bubble);
   const panel=document.createElement('div');panel.className='aiw-panel';
@@ -19,10 +22,13 @@ const script = (publicId: string, primaryColor: string) => `(()=>{
     <div class="aiw-header">AI Assistant</div>
     <div class="aiw-messages"></div>
     <div class="aiw-input"><input placeholder="Напишите сообщение..."/><button>Отправить</button></div>
+    <div class="aiw-lead"><input placeholder="Email" type="email"/><button data-lead>Оставить заявку</button></div>
   ` + "`" + `;document.body.appendChild(panel);
   const messages=panel.querySelector('.aiw-messages');
   const input=panel.querySelector('input');
   const sendBtn=panel.querySelector('button');
+  const leadBtn=panel.querySelector('[data-lead]');
+  const leadEmail=panel.querySelector('.aiw-lead input');
   const add=(role,content)=>{const d=document.createElement('div');d.style.margin='6px 0';d.textContent=(role==='user'?'Вы: ':'ИИ: ')+content;messages.appendChild(d);messages.scrollTop=messages.scrollHeight;}
   const send=async()=>{const v=input.value.trim();if(!v) return; add('user',v);input.value='';
     const r=await fetch((window.__AIW_ORIGIN__||location.origin)+` + "'" + `/api/widget/chat` + "'" + `,{
@@ -32,6 +38,16 @@ const script = (publicId: string, primaryColor: string) => `(()=>{
   };
   bubble.onclick=()=>{panel.style.display=panel.style.display==='none'||!panel.style.display?'flex':'none'};
   sendBtn.onclick=send; input.onkeypress=e=>{if(e.key==='Enter') send();};
+  const lead=async()=>{
+    const email=(leadEmail&&leadEmail.value||'').trim();
+    if(!email) return;
+    await fetch((window.__AIW_ORIGIN__||location.origin)+` + "'" + `/api/widget/lead` + "'" + `,{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ id:` + "'" + "${publicId}" + "'" + `, email })
+    });
+    leadBtn.textContent='Спасибо!';
+    setTimeout(()=>{leadBtn.textContent='Оставить заявку';},2000);
+  };
+  leadBtn&&leadBtn.addEventListener('click', lead);
 })();`;
 
 export async function GET(req: Request) {

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@/generated/prisma';
 
 export async function POST(req: Request) {
   const sig = req.headers.get('stripe-signature');
@@ -20,7 +21,7 @@ export async function POST(req: Request) {
     const companyId = s.metadata?.companyId as string | undefined;
     const planId = s.metadata?.planId as string | undefined;
     if (companyId) {
-      await prisma.subscription.create({
+      const sub = await prisma.subscription.create({
         data: {
           companyId,
           planId: planId ?? undefined,
@@ -40,6 +41,19 @@ export async function POST(req: Request) {
           },
         },
       });
+      // Referral 10% bonus to referrer if any
+      const company = await prisma.company.findUnique({ where: { id: companyId } });
+      if (company) {
+        const user = await prisma.user.findUnique({ where: { id: company.ownerId } });
+        if (user) {
+          const referral = await prisma.referral.findFirst({ where: { invitedId: user.id } });
+          if (referral && s.amount_total) {
+            const bonus = Math.floor(s.amount_total * 0.10);
+            await prisma.user.update({ where: { id: referral.referrerId }, data: { bonusBalanceCents: { increment: bonus } } });
+            await prisma.referral.update({ where: { id: referral.id }, data: { bonusCents: { increment: bonus } as any } });
+          }
+        }
+      }
     }
   }
 

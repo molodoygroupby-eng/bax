@@ -10,7 +10,8 @@ const handler = (req: Request) =>
     router: appRouter,
     createContext: async () => {
       const session = await getServerSession(authConfig);
-      return { userId: session?.user && (session.user as any).id };
+      const userId = (session as any)?.user?.id as string | undefined;
+      return { userId };
     },
     onError({ error }) {
       console.error(error);

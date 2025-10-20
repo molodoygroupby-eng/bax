@@ -11,5 +11,19 @@ services:
       - "5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
+  web:
+    build: .
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://app:app@db:5432/saas?schema=public
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      AUTH_URL: http://localhost:3000
+      AUTH_SECRET: changeme
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY}
+    ports:
+      - "3000:3000"
+    command: npm run start
 volumes:
   db-data:

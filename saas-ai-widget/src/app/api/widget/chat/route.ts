@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import OpenAI from 'openai';
+import { decryptFromBase64 } from '@/lib/crypto';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openaiDefault = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const memory: Record<string, { count: number; resetAt: number }> = {};
 
@@ -18,7 +19,7 @@ export async function POST(req: Request) {
   slot.count += 1; memory[key] = slot;
   if (slot.count > limit) return NextResponse.json({ error: 'Rate limit' }, { status: 429 });
 
-  const widget = await prisma.widget.findUnique({ where: { publicId: body.id }, include: { company: true } });
+  const widget = await prisma.widget.findUnique({ where: { publicId: body.id }, include: { company: { include: { owner: true } } } });
   if (!widget?.company) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   // Basic subscription check (can be improved later)
@@ -30,7 +31,9 @@ export async function POST(req: Request) {
 
   const systemPrompt = widget.company.systemPrompt || `Ты вежливый ИИ-помощник компании ${widget.company.name}. Отвечай кратко.`;
 
-  const completion = await openai.chat.completions.create({
+  const apiKey = (widget.company.owner as any)?.openaiKeyEncrypted ? decryptFromBase64((widget.company.owner as any).openaiKeyEncrypted) : process.env.OPENAI_API_KEY;
+  const client = new OpenAI({ apiKey });
+  const completion = await client.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
       { role: 'system', content: systemPrompt },
